@@ -2,108 +2,158 @@ package main
 
 import (
 	"image/color"
+	"sync"
 
 	"github.com/hajimehoshi/ebiten"
+	"github.com/hajimehoshi/ebiten/inpututil"
 	"github.com/michaelmcallister/mandelbrot/mandelbrot"
 )
 
+var waitGroup sync.WaitGroup
+
 const width, height = 600, 400
 
-const maxIterations = 100
+const zoomFactor = 1.1
+const iterationStep = 5
 
-func getColor(m int) color.RGBA {
+// default parameters for Mandelbrot.
+const (
+	rMin = -2.0
+	rMax = 1.0
+	iMin = -1.0
+	iMax = 1.8
+	zoom = width / (rMax - rMin)
+)
+
+func getColor(m, maxIterations int) color.RGBA {
 	c0 := 255 - uint8(m*255/maxIterations)
 	return color.RGBA{c0, c0, c0, 0xFF}
 }
 
-type MandelbrotViewer struct {
-	rendering bool
-	zoom      float64
-	centerX   float64
-	centerY   float64
+type mandelbrotViewer struct {
+	maxIterations int
+	rMax          float64
+	rMin          float64
+	iMin          float64
+	iMax          float64
+	zoom          float64
 }
 
-func (v *MandelbrotViewer) xToReal(x int) float64 {
-	minX := v.centerX - v.zoom/2
-	centerX := minX + float64(x)/float64(width)*v.zoom
-	return centerX
+// interpolate is responsible for determining the new co-ordinates for the
+// complex plane.
+// See: https://stackoverflow.com/questions/41796832/smooth-zoom-with-mouse-in-mandelbrot-set-c
+func interpolate(start, end, interpolation float64) float64 {
+	return start + ((end - start) * interpolation)
 }
 
-func (v *MandelbrotViewer) yToImaginary(y int) float64 {
-	minY := v.centerY - v.zoom/2
-	centerY := minY + float64(y)/float64(width)*v.zoom
-	return centerY
+func (v *mandelbrotViewer) zoomIn() {
+	v.zoom *= zoomFactor
 }
 
-func (v *MandelbrotViewer) zoomIn() {
-	v.zoom -= 0.3
+func (v *mandelbrotViewer) zoomOut() {
+	v.zoom /= zoomFactor
 }
 
-func (v *MandelbrotViewer) zoomOut() {
-	v.zoom += 0.3
+// reset sets the mandelbrot to how it was at the start.
+func (v *mandelbrotViewer) reset() {
+	v.maxIterations = 500
+	v.rMin = rMin
+	v.rMax = rMax
+	v.iMin = iMin
+	v.iMax = iMax
+	v.zoom = zoom
 }
 
-func (v *MandelbrotViewer) reset() {
-	v.zoom = 3.0
-	v.centerX = -0.72
-	v.centerY = 0.45
+func (v *mandelbrotViewer) increaseMaxIterations() {
+	v.maxIterations += iterationStep
 }
 
-func (v *MandelbrotViewer) pan(x, y float64) {
-	v.centerX += x
-	v.centerY += y
+func (v *mandelbrotViewer) decreaseMaxIterations() {
+	if v.maxIterations <= iterationStep {
+		return
+	}
+	v.maxIterations -= iterationStep
 }
 
-// Update don't do nuffink.
-func (v *MandelbrotViewer) Update(screen *ebiten.Image) error {
+// Update handles input that manipulates the complex plan.
+func (v *mandelbrotViewer) Update(screen *ebiten.Image) error {
+	// Click to zoom and pan.
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
+		mX, mY := ebiten.CursorPosition()
+		interpolation := 1.0 / zoomFactor
+		mouseRe := float64(mX)/(width/(v.rMax-v.rMin)) + v.rMin
+		mouseIm := float64(mY)/(height/(v.iMax-v.iMin)) + v.iMin
+		v.rMin = interpolate(mouseRe, v.rMin, interpolation)
+		v.iMin = interpolate(mouseIm, v.iMin, interpolation)
+		v.rMax = interpolate(mouseRe, v.rMax, interpolation)
+		v.iMax = interpolate(mouseIm, v.iMax, interpolation)
 		v.zoomIn()
 	}
-	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
+
+	// Increase/Decrease the max iterations.
+	if ebiten.IsKeyPressed(ebiten.KeyEqual) {
+		v.increaseMaxIterations()
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyMinus) {
+		v.decreaseMaxIterations()
+	}
+
+	// Zoom in and out based on the scroll wheel, preserving location on the
+	// complex plane.
+	_, dY := ebiten.Wheel()
+	if dY < 0.0 {
 		v.zoomOut()
 	}
-	if ebiten.IsKeyPressed(ebiten.KeySpace) {
+	if dY > 0.0 {
+		v.zoomIn()
+	}
+
+	// Zoom out based on the scroll wheel, preserving location on the complex
+	// plane.
+	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
+		v.zoomOut()
+	}
+
+	// Reset back to factory defaults.
+	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		v.reset()
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyLeft) {
-		v.pan(-0.05, 0.0)
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyRight) {
-		v.pan(0.05, 0.0)
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyUp) {
-		v.pan(0.0, -0.05)
-	}
-	if ebiten.IsKeyPressed(ebiten.KeyDown) {
-		v.pan(0.0, 0.05)
 	}
 	return nil
 }
 
 // Draw displays the mandelbrot set.
-func (v *MandelbrotViewer) Draw(screen *ebiten.Image) {
-	v.rendering = true
+func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
 	for x := 0; x < width; x++ {
-		for y := 0; y < height; y++ {
-			c := complex(v.xToReal(x), v.yToImaginary(y))
-			m := mandelbrot.Mandelbrot(c, maxIterations)
-			screen.Set(x, y, getColor(m))
-		}
+		waitGroup.Add(1)
+		go func(x int) {
+			defer waitGroup.Done()
+			for y := 0; y < height; y++ {
+				cx := float64(x)/v.zoom + v.rMin
+				cy := float64(y)/v.zoom + v.iMin
+				c := complex(cx, cy)
+				m := mandelbrot.Mandelbrot(c, v.maxIterations)
+				screen.Set(x, y, getColor(m, v.maxIterations))
+			}
+		}(x)
 	}
-	v.rendering = false
+	waitGroup.Wait()
 }
 
 // Layout takes the outside size (e.v., the window size) and returns the (logical) screen size.
-func (v *MandelbrotViewer) Layout(outsideWidth, outsideHeight int) (int, int) {
+func (v *mandelbrotViewer) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return width, height
 }
 
 func main() {
 	ebiten.SetWindowTitle("Mandelbrot")
-	v := &MandelbrotViewer{
-		zoom:    3.0,
-		centerX: -0.72,
-		centerY: 0.45,
+	ebiten.SetWindowSize(width, height)
+	v := &mandelbrotViewer{
+		maxIterations: 500,
+		rMin:          rMin,
+		rMax:          rMax,
+		iMin:          iMin,
+		iMax:          iMax,
+		zoom:          zoom,
 	}
 	if err := ebiten.RunGame(v); err != nil {
 		panic(err)
