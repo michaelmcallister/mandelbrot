@@ -38,4 +38,4 @@ Distributed under the MIT License. See `LICENSE` for more information.
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=flat-square&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/mpmcallister
 [goversion-url]: https://img.shields.io/github/go-mod/go-version/michaelmcallister/mandelbrot
-[goreport-url]: https://goreportcard.com/badge/gojp/goreportcard
+[goreport-url]: https://goreportcard.com/badge/github.com/michaelmcallister/mandelbrot
