@@ -2,6 +2,7 @@ package main
 
 import (
 	"image/color"
+	"image/color/palette"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten"
@@ -11,24 +12,19 @@ import (
 
 var waitGroup sync.WaitGroup
 
-const width, height = 600, 400
-
-const zoomFactor = 1.1
-const iterationStep = 5
-
 // default parameters for Mandelbrot.
 const (
-	rMin = -2.0
-	rMax = 1.0
-	iMin = -1.0
-	iMax = 1.8
-	zoom = width / (rMax - rMin)
+	zoomFactor        = 1.1
+	iterationStep     = 5
+	width             = 600
+	height            = 400
+	rMin              = -2.0
+	rMax              = 1.0
+	iMin              = -1.0
+	iMax              = 1.8
+	zoom              = width / (rMax - rMin)
+	defaultIterations = 256
 )
-
-func getColor(m, maxIterations int) color.RGBA {
-	c0 := 255 - uint8(m*255/maxIterations)
-	return color.RGBA{c0, c0, c0, 0xFF}
-}
 
 type mandelbrotViewer struct {
 	maxIterations int
@@ -46,6 +42,17 @@ func interpolate(start, end, interpolation float64) float64 {
 	return start + ((end - start) * interpolation)
 }
 
+// color returns a colour based on the current value of m.
+func (v *mandelbrotViewer) color(m int) color.Color {
+	if m > len(palette.Plan9)-1 {
+		return color.Black
+	}
+	if m <= 0 {
+		return color.White
+	}
+	return palette.Plan9[m]
+}
+
 func (v *mandelbrotViewer) zoomIn() {
 	v.zoom *= zoomFactor
 }
@@ -56,7 +63,7 @@ func (v *mandelbrotViewer) zoomOut() {
 
 // reset sets the mandelbrot to how it was at the start.
 func (v *mandelbrotViewer) reset() {
-	v.maxIterations = 500
+	v.maxIterations = defaultIterations
 	v.rMin = rMin
 	v.rMax = rMax
 	v.iMin = iMin
@@ -123,20 +130,29 @@ func (v *mandelbrotViewer) Update(screen *ebiten.Image) error {
 
 // Draw displays the mandelbrot set.
 func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
-	for x := 0; x < width; x++ {
+	pix := make([]byte, width*height*4)
+	l := width * height
+	for i := 0; i < l; i++ {
 		waitGroup.Add(1)
-		go func(x int) {
+		go func(i int) {
 			defer waitGroup.Done()
-			for y := 0; y < height; y++ {
-				cx := float64(x)/v.zoom + v.rMin
-				cy := float64(y)/v.zoom + v.iMin
-				c := complex(cx, cy)
-				m := mandelbrot.Mandelbrot(c, v.maxIterations)
-				screen.Set(x, y, getColor(m, v.maxIterations))
-			}
-		}(x)
+			x := i % width
+			y := i / width
+
+			cx := float64(x)/v.zoom + v.rMin
+			cy := float64(y)/v.zoom + v.iMin
+			c := complex(cx, cy)
+			m := mandelbrot.Mandelbrot(c, v.maxIterations)
+
+			r, g, b, a := v.color(m).RGBA()
+			pix[4*i] = byte(r)
+			pix[4*i+1] = byte(g)
+			pix[4*i+2] = byte(b)
+			pix[4*i+3] = byte(a)
+		}(i)
 	}
 	waitGroup.Wait()
+	screen.ReplacePixels(pix)
 }
 
 // Layout takes the outside size (e.v., the window size) and returns the (logical) screen size.
@@ -148,7 +164,7 @@ func main() {
 	ebiten.SetWindowTitle("Mandelbrot")
 	ebiten.SetWindowSize(width, height)
 	v := &mandelbrotViewer{
-		maxIterations: 500,
+		maxIterations: defaultIterations,
 		rMin:          rMin,
 		rMax:          rMax,
 		iMin:          iMin,
