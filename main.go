@@ -1,11 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"image/color"
 	"image/color/palette"
+	"os"
+	"strings"
 	"sync"
 
 	"github.com/hajimehoshi/ebiten"
+	"github.com/hajimehoshi/ebiten/ebitenutil"
 	"github.com/hajimehoshi/ebiten/inpututil"
 	"github.com/michaelmcallister/mandelbrot/mandelbrot"
 )
@@ -33,6 +37,7 @@ type mandelbrotViewer struct {
 	iMin          float64
 	iMax          float64
 	zoom          float64
+	displayDebug  bool
 }
 
 // interpolate is responsible for determining the new co-ordinates for the
@@ -40,6 +45,16 @@ type mandelbrotViewer struct {
 // See: https://stackoverflow.com/questions/41796832/smooth-zoom-with-mouse-in-mandelbrot-set-c
 func interpolate(start, end, interpolation float64) float64 {
 	return start + ((end - start) * interpolation)
+}
+
+// mouseLocation returns the location on the complex plane where the mouse
+// pointer is currently at.
+func (v *mandelbrotViewer) mouseLocation() (float64, float64) {
+	mX, mY := ebiten.CursorPosition()
+	mouseRe := float64(mX)/(width/(v.rMax-v.rMin)) + v.rMin
+	mouseIm := float64(mY)/(height/(v.iMax-v.iMin)) + v.iMin
+
+	return mouseRe, mouseIm
 }
 
 // color returns a colour based on the current value of m.
@@ -51,6 +66,20 @@ func (v *mandelbrotViewer) color(m int) color.Color {
 		return color.White
 	}
 	return palette.Plan9[m]
+}
+
+func (v *mandelbrotViewer) debugPrint(screen *ebiten.Image) {
+	if !v.displayDebug {
+		return
+	}
+	var sb strings.Builder
+	x, y := v.mouseLocation()
+	sb.WriteString(fmt.Sprintf("Location: %f, %f\n", x, y))
+	sb.WriteString(fmt.Sprintf("Zoom: %f\n", v.zoom))
+	sb.WriteString(fmt.Sprintf("Max Iterations: %d\n", v.maxIterations))
+
+	// always return nil.
+	ebitenutil.DebugPrint(screen, sb.String())
 }
 
 func (v *mandelbrotViewer) zoomIn() {
@@ -86,10 +115,8 @@ func (v *mandelbrotViewer) decreaseMaxIterations() {
 func (v *mandelbrotViewer) Update(screen *ebiten.Image) error {
 	// Click to zoom and pan.
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
-		mX, mY := ebiten.CursorPosition()
 		interpolation := 1.0 / zoomFactor
-		mouseRe := float64(mX)/(width/(v.rMax-v.rMin)) + v.rMin
-		mouseIm := float64(mY)/(height/(v.iMax-v.iMin)) + v.iMin
+		mouseRe, mouseIm := v.mouseLocation()
 		v.rMin = interpolate(mouseRe, v.rMin, interpolation)
 		v.iMin = interpolate(mouseIm, v.iMin, interpolation)
 		v.rMax = interpolate(mouseRe, v.rMax, interpolation)
@@ -125,6 +152,19 @@ func (v *mandelbrotViewer) Update(screen *ebiten.Image) error {
 	if inpututil.IsKeyJustPressed(ebiten.KeySpace) {
 		v.reset()
 	}
+
+	// Exit the proram if 'q' is pressed.
+	if inpututil.IsKeyJustPressed(ebiten.KeyQ) {
+		os.Exit(0)
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyEnter) {
+		ebiten.SetFullscreen(!ebiten.IsFullscreen())
+	}
+
+	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
+		v.displayDebug = !v.displayDebug
+	}
 	return nil
 }
 
@@ -153,6 +193,7 @@ func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
 	}
 	waitGroup.Wait()
 	screen.ReplacePixels(pix)
+	v.debugPrint(screen)
 }
 
 // Layout takes the outside size (e.v., the window size) and returns the (logical) screen size.
@@ -163,6 +204,8 @@ func (v *mandelbrotViewer) Layout(outsideWidth, outsideHeight int) (int, int) {
 func main() {
 	ebiten.SetWindowTitle("Mandelbrot")
 	ebiten.SetWindowSize(width, height)
+	ebiten.SetMaxTPS(ebiten.UncappedTPS)
+
 	v := &mandelbrotViewer{
 		maxIterations: defaultIterations,
 		rMin:          rMin,
@@ -170,6 +213,7 @@ func main() {
 		iMin:          iMin,
 		iMax:          iMax,
 		zoom:          zoom,
+		displayDebug:  true,
 	}
 	if err := ebiten.RunGame(v); err != nil {
 		panic(err)

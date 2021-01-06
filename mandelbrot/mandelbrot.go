@@ -1,6 +1,8 @@
 package mandelbrot
 
-import "math/cmplx"
+import (
+	"math/cmplx"
+)
 
 // Mandelbrot computes the number of iterations necessary to determine whether
 // the supplied complex number c and the Mandelbrot orbit sequence tends to
