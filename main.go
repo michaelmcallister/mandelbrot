@@ -144,7 +144,7 @@ func (v *mandelbrotViewer) Update(screen *ebiten.Image) error {
 
 	// Zoom out based on the scroll wheel, preserving location on the complex
 	// plane.
-	if inpututil.IsMouseButtonJustPressed(ebiten.MouseButtonRight) {
+	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonRight) {
 		v.zoomOut()
 	}
 
