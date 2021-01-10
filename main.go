@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"image/color"
 	"image/color/palette"
@@ -16,18 +17,22 @@ import (
 
 var waitGroup sync.WaitGroup
 
+var (
+	heightFlag = flag.Int("h", 400, "height (in pixels) for rendering")
+	widthFlag  = flag.Int("w", 600, "width (in pixels) for rendering")
+)
+
 // default parameters for Mandelbrot.
+var zoom = float64(*widthFlag) / (rMax - rMin)
+
 const (
 	zoomFactor        = 1.1
 	panFactor         = 10.0
 	iterationStep     = 5
-	width             = 600
-	height            = 400
 	rMin              = -2.0
 	rMax              = 1.0
 	iMin              = -1.0
 	iMax              = 1.8
-	zoom              = width / (rMax - rMin)
 	defaultIterations = 256
 )
 
@@ -61,8 +66,8 @@ func interpolate(start, end, interpolation float64) float64 {
 // pointer is currently at.
 func (v *mandelbrotViewer) mouseLocation() (float64, float64) {
 	mX, mY := ebiten.CursorPosition()
-	mouseRe := float64(mX)/(width/(v.rMax-v.rMin)) + v.rMin
-	mouseIm := float64(mY)/(height/(v.iMax-v.iMin)) + v.iMin
+	mouseRe := float64(mX)/(float64(*widthFlag)/(v.rMax-v.rMin)) + v.rMin
+	mouseIm := float64(mY)/(float64(*heightFlag)/(v.iMax-v.iMin)) + v.iMin
 
 	return mouseRe, mouseIm
 }
@@ -210,14 +215,14 @@ func (v *mandelbrotViewer) Update(screen *ebiten.Image) error {
 
 // Draw displays the mandelbrot set.
 func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
-	pix := make([]byte, width*height*4)
-	l := width * height
+	pix := make([]byte, *widthFlag**heightFlag*4)
+	l := *widthFlag * *heightFlag
 	for i := 0; i < l; i++ {
 		waitGroup.Add(1)
 		go func(i int) {
 			defer waitGroup.Done()
-			x := i % width
-			y := i / width
+			x := i % *widthFlag
+			y := i / *widthFlag
 
 			cx := float64(x)/v.zoom + v.rMin
 			cy := float64(y)/v.zoom + v.iMin
@@ -238,12 +243,13 @@ func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
 
 // Layout takes the outside size (e.v., the window size) and returns the (logical) screen size.
 func (v *mandelbrotViewer) Layout(outsideWidth, outsideHeight int) (int, int) {
-	return width, height
+	return *widthFlag, *heightFlag
 }
 
 func main() {
+	flag.Parse()
 	ebiten.SetWindowTitle("Mandelbrot")
-	ebiten.SetWindowSize(width, height)
+	ebiten.SetWindowSize(*widthFlag, *heightFlag)
 	ebiten.SetMaxTPS(ebiten.UncappedTPS)
 
 	v := &mandelbrotViewer{
