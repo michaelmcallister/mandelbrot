@@ -1,7 +1,7 @@
 [![MIT License][license-shield]][license-url]
 [![LinkedIn][linkedin-shield]][linkedin-url]
 ![GitHub go.mod Go version][goversion-url]
-![Go Report Card][goreport-url]
+[![Go Report Card][goreport-shield]][goreport-url]
 <!-- PROJECT LOGO -->
 <br />
 <p align="center">
@@ -38,4 +38,5 @@ Distributed under the MIT License. See `LICENSE` for more information.
 [linkedin-shield]: https://img.shields.io/badge/-LinkedIn-black.svg?style=flat-square&logo=linkedin&colorB=555
 [linkedin-url]: https://linkedin.com/in/mpmcallister
 [goversion-url]: https://img.shields.io/github/go-mod/go-version/michaelmcallister/mandelbrot
-[goreport-url]: https://goreportcard.com/badge/github.com/michaelmcallister/mandelbrot
+[goreport-shield]: https://goreportcard.com/badge/github.com/michaelmcallister/mandelbrot
+[goreport-url]: https://goreportcard.com/report/github.com/michaelmcallister/mandelbrot
