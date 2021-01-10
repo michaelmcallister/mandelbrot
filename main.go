@@ -19,6 +19,7 @@ var waitGroup sync.WaitGroup
 // default parameters for Mandelbrot.
 const (
 	zoomFactor        = 1.1
+	panFactor         = 10.0
 	iterationStep     = 5
 	width             = 600
 	height            = 400
@@ -28,6 +29,15 @@ const (
 	iMax              = 1.8
 	zoom              = width / (rMax - rMin)
 	defaultIterations = 256
+)
+
+type panDirection int
+
+const (
+	left panDirection = iota
+	right
+	up
+	down
 )
 
 type mandelbrotViewer struct {
@@ -90,6 +100,20 @@ func (v *mandelbrotViewer) zoomOut() {
 	v.zoom /= zoomFactor
 }
 
+func (v *mandelbrotViewer) pan(d panDirection) {
+	p := panFactor / v.zoom
+	switch d {
+	case up:
+		v.iMin -= p
+	case left:
+		v.rMin -= p
+	case down:
+		v.iMin += p
+	case right:
+		v.rMin += p
+	}
+}
+
 // reset sets the mandelbrot to how it was at the start.
 func (v *mandelbrotViewer) reset() {
 	v.maxIterations = defaultIterations
@@ -122,6 +146,22 @@ func (v *mandelbrotViewer) Update(screen *ebiten.Image) error {
 		v.rMax = interpolate(mouseRe, v.rMax, interpolation)
 		v.iMax = interpolate(mouseIm, v.iMax, interpolation)
 		v.zoomIn()
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyLeft) {
+		v.pan(left)
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyRight) {
+		v.pan(right)
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyUp) {
+		v.pan(up)
+	}
+
+	if ebiten.IsKeyPressed(ebiten.KeyDown) {
+		v.pan(down)
 	}
 
 	// Increase/Decrease the max iterations.
