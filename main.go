@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hajimehoshi/ebiten"
-	"github.com/hajimehoshi/ebiten/ebitenutil"
-	"github.com/hajimehoshi/ebiten/inpututil"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/michaelmcallister/mandelbrot/mandelbrot"
 )
 
@@ -20,6 +20,7 @@ var waitGroup sync.WaitGroup
 var (
 	heightFlag = flag.Int("h", 400, "height (in pixels) for rendering")
 	widthFlag  = flag.Int("w", 600, "width (in pixels) for rendering")
+	cpuProfile = flag.String("cpuprofile", "", "write cpu profile to file")
 )
 
 // default parameters for Mandelbrot.
@@ -141,7 +142,7 @@ func (v *mandelbrotViewer) decreaseMaxIterations() {
 }
 
 // Update handles input that manipulates the complex plan.
-func (v *mandelbrotViewer) Update(screen *ebiten.Image) error {
+func (v *mandelbrotViewer) Update() error {
 	// Click to zoom and pan.
 	if ebiten.IsMouseButtonPressed(ebiten.MouseButtonLeft) {
 		interpolation := 1.0 / zoomFactor
