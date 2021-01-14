@@ -90,6 +90,7 @@ func (v *mandelbrotViewer) debugPrint(screen *ebiten.Image) {
 	}
 	var sb strings.Builder
 	x, y := v.mouseLocation()
+	sb.WriteString(fmt.Sprintf("FPS: %f\n", ebiten.CurrentFPS()))
 	sb.WriteString(fmt.Sprintf("Location: %f, %f\n", x, y))
 	sb.WriteString(fmt.Sprintf("Zoom: %f\n", v.zoom))
 	sb.WriteString(fmt.Sprintf("Max Iterations: %d\n", v.maxIterations))
