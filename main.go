@@ -56,6 +56,8 @@ type mandelbrotViewer struct {
 	iMax          float64
 	zoom          float64
 	displayDebug  bool
+	redraw        bool
+	screenBuffer  []byte
 }
 
 // mandelbrot computes the number of iterations necessary to determine whether
@@ -114,14 +116,17 @@ func (v *mandelbrotViewer) debugPrint(screen *ebiten.Image) {
 }
 
 func (v *mandelbrotViewer) zoomIn() {
+	v.redraw = true
 	v.zoom *= zoomFactor
 }
 
 func (v *mandelbrotViewer) zoomOut() {
+	v.redraw = true
 	v.zoom /= zoomFactor
 }
 
 func (v *mandelbrotViewer) pan(d panDirection) {
+	v.redraw = true
 	p := panFactor / v.zoom
 	switch d {
 	case up:
@@ -137,6 +142,7 @@ func (v *mandelbrotViewer) pan(d panDirection) {
 
 // reset sets the mandelbrot to how it was at the start.
 func (v *mandelbrotViewer) reset() {
+	v.redraw = true
 	v.maxIterations = defaultIterations
 	v.rMin = rMin
 	v.rMax = rMax
@@ -146,10 +152,12 @@ func (v *mandelbrotViewer) reset() {
 }
 
 func (v *mandelbrotViewer) increaseMaxIterations() {
+	v.redraw = true
 	v.maxIterations += iterationStep
 }
 
 func (v *mandelbrotViewer) decreaseMaxIterations() {
+	v.redraw = true
 	if v.maxIterations <= iterationStep {
 		return
 	}
@@ -226,11 +234,16 @@ func (v *mandelbrotViewer) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyD) {
 		v.displayDebug = !v.displayDebug
 	}
+
+	// draw to screen buffer.
+	if len(v.screenBuffer) == 0 || v.redraw {
+		v.screenBuffer = v.render()
+		v.redraw = false
+	}
 	return nil
 }
 
-// Draw displays the mandelbrot set.
-func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
+func (v *mandelbrotViewer) render() []byte {
 	pix := make([]byte, *widthFlag**heightFlag*4)
 	l := *widthFlag * *heightFlag
 	for i := 0; i < l; i++ {
@@ -244,7 +257,6 @@ func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
 			cy := float64(y)/v.zoom + v.iMin
 			c := complex(cx, cy)
 			m := mandelbrot(c, v.maxIterations)
-
 			r, g, b, a := v.color(m).RGBA()
 			pix[4*i] = byte(r)
 			pix[4*i+1] = byte(g)
@@ -253,7 +265,12 @@ func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
 		}(i)
 	}
 	waitGroup.Wait()
-	screen.ReplacePixels(pix)
+	return pix
+}
+
+// Draw displays the mandelbrot set.
+func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
+	screen.ReplacePixels(v.screenBuffer)
 	v.debugPrint(screen)
 }
 
@@ -266,7 +283,6 @@ func main() {
 	flag.Parse()
 	ebiten.SetWindowTitle("Mandelbrot")
 	ebiten.SetWindowSize(*widthFlag, *heightFlag)
-	ebiten.SetMaxTPS(ebiten.UncappedTPS)
 
 	v := &mandelbrotViewer{
 		maxIterations: defaultIterations,
