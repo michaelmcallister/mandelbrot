@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"image/color"
 	"image/color/palette"
+	"math"
+	"math/cmplx"
 	"os"
 	"strings"
 	"sync"
@@ -12,7 +14,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/michaelmcallister/mandelbrot/mandelbrot"
+	"github.com/lucasb-eyer/go-colorful"
 )
 
 var waitGroup sync.WaitGroup
@@ -56,6 +58,19 @@ type mandelbrotViewer struct {
 	displayDebug  bool
 }
 
+// mandelbrot computes the number of iterations necessary to determine whether
+// the supplied complex number c and the Mandelbrot orbit sequence tends to
+// infinity or not.
+func mandelbrot(c complex128, maxIterations int) float64 {
+	var n int
+	var z complex128
+	for cmplx.Abs(z) <= 2 && n < maxIterations {
+		z = z*z + c
+		n++
+	}
+	return float64(n) - math.Log(math.Log2(cmplx.Abs(z)))
+}
+
 // interpolate is responsible for determining the new co-ordinates for the
 // complex plane.
 // See: https://stackoverflow.com/questions/41796832/smooth-zoom-with-mouse-in-mandelbrot-set-c
@@ -74,14 +89,13 @@ func (v *mandelbrotViewer) mouseLocation() (float64, float64) {
 }
 
 // color returns a colour based on the current value of m.
-func (v *mandelbrotViewer) color(m int) color.Color {
-	if m > len(palette.Plan9)-1 {
-		return color.Black
-	}
-	if m <= 0 {
-		return color.White
-	}
-	return palette.Plan9[m]
+func (v *mandelbrotViewer) color(m float64) color.Color {
+	_, f := math.Modf(m)
+	ncol := len(palette.Plan9)
+	c1, _ := colorful.MakeColor(palette.Plan9[int(m)%ncol])
+	c2, _ := colorful.MakeColor(palette.Plan9[int(m+1)%ncol])
+	r, g, b := c1.BlendHcl(c2, f).Clamped().RGB255()
+	return color.RGBA{r, g, b, 255}
 }
 
 func (v *mandelbrotViewer) debugPrint(screen *ebiten.Image) {
@@ -229,7 +243,7 @@ func (v *mandelbrotViewer) Draw(screen *ebiten.Image) {
 			cx := float64(x)/v.zoom + v.rMin
 			cy := float64(y)/v.zoom + v.iMin
 			c := complex(cx, cy)
-			m := mandelbrot.Mandelbrot(c, v.maxIterations)
+			m := mandelbrot(c, v.maxIterations)
 
 			r, g, b, a := v.color(m).RGBA()
 			pix[4*i] = byte(r)
