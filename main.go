@@ -9,15 +9,12 @@ import (
 	"math/cmplx"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"github.com/lucasb-eyer/go-colorful"
 )
-
-var waitGroup sync.WaitGroup
 
 var (
 	heightFlag = flag.Int("h", 400, "height (in pixels) for rendering")
@@ -106,7 +103,7 @@ func (v *mandelbrotViewer) debugPrint(screen *ebiten.Image) {
 	}
 	var sb strings.Builder
 	x, y := v.mouseLocation()
-	sb.WriteString(fmt.Sprintf("FPS: %f\n", ebiten.CurrentFPS()))
+	sb.WriteString(fmt.Sprintf("TPS: %f\n", ebiten.CurrentTPS()))
 	sb.WriteString(fmt.Sprintf("Location: %f, %f\n", x, y))
 	sb.WriteString(fmt.Sprintf("Zoom: %f\n", v.zoom))
 	sb.WriteString(fmt.Sprintf("Max Iterations: %d\n", v.maxIterations))
@@ -247,24 +244,19 @@ func (v *mandelbrotViewer) render() []byte {
 	pix := make([]byte, *widthFlag**heightFlag*4)
 	l := *widthFlag * *heightFlag
 	for i := 0; i < l; i++ {
-		waitGroup.Add(1)
-		go func(i int) {
-			defer waitGroup.Done()
-			x := i % *widthFlag
-			y := i / *widthFlag
+		x := i % *widthFlag
+		y := i / *widthFlag
 
-			cx := float64(x)/v.zoom + v.rMin
-			cy := float64(y)/v.zoom + v.iMin
-			c := complex(cx, cy)
-			m := mandelbrot(c, v.maxIterations)
-			r, g, b, a := v.color(m).RGBA()
-			pix[4*i] = byte(r)
-			pix[4*i+1] = byte(g)
-			pix[4*i+2] = byte(b)
-			pix[4*i+3] = byte(a)
-		}(i)
+		cx := float64(x)/v.zoom + v.rMin
+		cy := float64(y)/v.zoom + v.iMin
+		c := complex(cx, cy)
+		m := mandelbrot(c, v.maxIterations)
+		r, g, b, a := v.color(m).RGBA()
+		pix[4*i] = byte(r)
+		pix[4*i+1] = byte(g)
+		pix[4*i+2] = byte(b)
+		pix[4*i+3] = byte(a)
 	}
-	waitGroup.Wait()
 	return pix
 }
 
